@@ -1,3 +1,5 @@
+import { db } from '../db';
+import { additionalTasksTable } from '../db/schema';
 import { type CreateAdditionalTaskInput, type AdditionalTask } from '../schema';
 
 /**
@@ -5,15 +7,27 @@ import { type CreateAdditionalTaskInput, type AdditionalTask } from '../schema';
  * Handles additional task creation with name, description, and JP equivalent
  */
 export const createAdditionalTask = async (input: CreateAdditionalTaskInput): Promise<AdditionalTask> => {
-    // Placeholder implementation - should create additional task in database
-    return Promise.resolve({
-        id: 1,
+  try {
+    // Insert additional task record
+    const result = await db.insert(additionalTasksTable)
+      .values({
         name: input.name,
         description: input.description,
-        jp_equivalent: input.jp_equivalent,
-        created_at: new Date(),
-        updated_at: new Date()
-    });
+        jp_equivalent: input.jp_equivalent.toString() // Convert number to string for numeric column
+      })
+      .returning()
+      .execute();
+
+    // Convert numeric fields back to numbers before returning
+    const task = result[0];
+    return {
+      ...task,
+      jp_equivalent: parseFloat(task.jp_equivalent) // Convert string back to number
+    };
+  } catch (error) {
+    console.error('Additional task creation failed:', error);
+    throw error;
+  }
 };
 
 /**

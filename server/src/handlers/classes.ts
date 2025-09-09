@@ -1,20 +1,40 @@
+import { db } from '../db';
+import { classesTable, academicYearsTable } from '../db/schema';
 import { type CreateClassInput, type UpdateClassInput, type Class } from '../schema';
+import { eq } from 'drizzle-orm';
 
 /**
  * Create a new class
  * Handles class creation with grade level, rombel, name, and academic year association
  */
 export const createClass = async (input: CreateClassInput): Promise<Class> => {
-    // Placeholder implementation - should create class in database
-    return Promise.resolve({
-        id: 1,
+  try {
+    // Verify academic year exists
+    const academicYear = await db.select()
+      .from(academicYearsTable)
+      .where(eq(academicYearsTable.id, input.academic_year_id))
+      .execute();
+
+    if (academicYear.length === 0) {
+      throw new Error(`Academic year with ID ${input.academic_year_id} not found`);
+    }
+
+    // Insert class record
+    const result = await db.insert(classesTable)
+      .values({
         grade_level: input.grade_level,
         rombel: input.rombel,
         class_name: input.class_name,
-        academic_year_id: input.academic_year_id,
-        created_at: new Date(),
-        updated_at: new Date()
-    });
+        academic_year_id: input.academic_year_id
+      })
+      .returning()
+      .execute();
+
+    return result[0];
+  } catch (error) {
+    console.error('Class creation failed:', error);
+    throw error;
+  }
 };
 
 /**
@@ -22,8 +42,16 @@ export const createClass = async (input: CreateClassInput): Promise<Class> => {
  * Returns list of all classes in the system
  */
 export const getClasses = async (): Promise<Class[]> => {
-    // Placeholder implementation - should fetch classes from database
-    return Promise.resolve([]);
+  try {
+    const results = await db.select()
+      .from(classesTable)
+      .execute();
+
+    return results;
+  } catch (error) {
+    console.error('Failed to fetch classes:', error);
+    throw error;
+  }
 };
 
 /**
@@ -31,8 +59,17 @@ export const getClasses = async (): Promise<Class[]> => {
  * Returns classes for specific academic year
  */
 export const getClassesByAcademicYear = async (academicYearId: number): Promise<Class[]> => {
-    // Placeholder implementation - should fetch classes by academic year from database
-    return Promise.resolve([]);
+  try {
+    const results = await db.select()
+      .from(classesTable)
+      .where(eq(classesTable.academic_year_id, academicYearId))
+      .execute();
+
+    return results;
+  } catch (error) {
+    console.error('Failed to fetch classes by academic year:', error);
+    throw error;
+  }
 };
 
 /**
@@ -40,8 +77,17 @@ export const getClassesByAcademicYear = async (academicYearId: number): Promise<
  * Returns specific class details by ID
  */
 export const getClassById = async (id: number): Promise<Class | null> => {
-    // Placeholder implementation - should fetch class by ID from database
-    return Promise.resolve(null);
+  try {
+    const results = await db.select()
+      .from(classesTable)
+      .where(eq(classesTable.id, id))
+      .execute();
+
+    return results.length > 0 ? results[0] : null;
+  } catch (error) {
+    console.error('Failed to fetch class by ID:', error);
+    throw error;
+  }
 };
 
 /**
@@ -49,16 +95,44 @@ export const getClassById = async (id: number): Promise<Class | null> => {
  * Updates existing class record with new data
  */
 export const updateClass = async (input: UpdateClassInput): Promise<Class> => {
-    // Placeholder implementation - should update class in database
-    return Promise.resolve({
-        id: input.id,
-        grade_level: input.grade_level || 7,
-        rombel: input.rombel || 'A',
-        class_name: input.class_name || 'Updated Class',
-        academic_year_id: input.academic_year_id || 1,
-        created_at: new Date(),
-        updated_at: new Date()
-    });
+  try {
+    // Check if class exists
+    const existingClass = await getClassById(input.id);
+    if (!existingClass) {
+      throw new Error(`Class with ID ${input.id} not found`);
+    }
+
+    // If academic_year_id is being updated, verify it exists
+    if (input.academic_year_id && input.academic_year_id !== existingClass.academic_year_id) {
+      const academicYear = await db.select()
+        .from(academicYearsTable)
+        .where(eq(academicYearsTable.id, input.academic_year_id))
+        .execute();
+
+      if (academicYear.length === 0) {
+        throw new Error(`Academic year with ID ${input.academic_year_id} not found`);
+      }
+    }
+
+    // Prepare update data
+    const updateData: Partial<typeof classesTable.$inferInsert> = {};
+    if (input.grade_level !== undefined) updateData.grade_level = input.grade_level;
+    if (input.rombel !== undefined) updateData.rombel = input.rombel;
+    if (input.class_name !== undefined) updateData.class_name = input.class_name;
+    if (input.academic_year_id !== undefined) updateData.academic_year_id = input.academic_year_id;
+
+    // Update class record
+    const result = await db.update(classesTable)
+      .set(updateData)
+      .where(eq(classesTable.id, input.id))
+      .returning()
+      .execute();
+
+    return result[0];
+  } catch (error) {
+    console.error('Class update failed:', error);
+    throw error;
+  }
 };
 
 /**
@@ -66,6 +140,21 @@ export const updateClass = async (input: UpdateClassInput): Promise<Class> => {
  * Removes class record from database
  */
 export const deleteClass = async (id: number): Promise<boolean> => {
-    // Placeholder implementation - should delete class from database
-    return Promise.resolve(true);
+  try {
+    // Check if class exists
+    const existingClass = await getClassById(id);
+    if (!existingClass) {
+      throw new Error(`Class with ID ${id} not found`);
+    }
+
+    // Delete class record
+    await db.delete(classesTable)
+      .where(eq(classesTable.id, id))
+      .execute();
+
+    return true;
+  } catch (error) {
+    console.error('Class deletion failed:', error);
+    throw error;
+  }
 };

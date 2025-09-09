@@ -1,13 +1,48 @@
+import { db } from '../db';
+import { schedulesTable, academicYearsTable, classesTable, scheduleTemplatesTable, subjectsTable, teachersTable } from '../db/schema';
 import { type CreateScheduleInput, type UpdateScheduleInput, type Schedule } from '../schema';
+import { eq } from 'drizzle-orm';
 
 /**
  * Create a new schedule entry
  * Handles manual schedule entry creation
  */
 export const createSchedule = async (input: CreateScheduleInput): Promise<Schedule> => {
-    // Placeholder implementation - should create schedule in database
-    return Promise.resolve({
-        id: 1,
+  try {
+    // Validate foreign key relationships
+    const academicYear = await db.select().from(academicYearsTable).where(eq(academicYearsTable.id, input.academic_year_id)).execute();
+    if (academicYear.length === 0) {
+      throw new Error(`Academic year with id ${input.academic_year_id} not found`);
+    }
+
+    const classRecord = await db.select().from(classesTable).where(eq(classesTable.id, input.class_id)).execute();
+    if (classRecord.length === 0) {
+      throw new Error(`Class with id ${input.class_id} not found`);
+    }
+
+    const template = await db.select().from(scheduleTemplatesTable).where(eq(scheduleTemplatesTable.id, input.template_id)).execute();
+    if (template.length === 0) {
+      throw new Error(`Schedule template with id ${input.template_id} not found`);
+    }
+
+    // Validate optional foreign keys if provided
+    if (input.subject_id !== null && input.subject_id !== undefined) {
+      const subject = await db.select().from(subjectsTable).where(eq(subjectsTable.id, input.subject_id)).execute();
+      if (subject.length === 0) {
+        throw new Error(`Subject with id ${input.subject_id} not found`);
+      }
+    }
+
+    if (input.teacher_id !== null && input.teacher_id !== undefined) {
+      const teacher = await db.select().from(teachersTable).where(eq(teachersTable.id, input.teacher_id)).execute();
+      if (teacher.length === 0) {
+        throw new Error(`Teacher with id ${input.teacher_id} not found`);
+      }
+    }
+
+    // Insert schedule record
+    const result = await db.insert(schedulesTable)
+      .values({
         academic_year_id: input.academic_year_id,
         class_id: input.class_id,
         template_id: input.template_id,
@@ -16,10 +51,16 @@ export const createSchedule = async (input: CreateScheduleInput): Promise<Schedu
         subject_id: input.subject_id || null,
         teacher_id: input.teacher_id || null,
         is_manual: input.is_manual,
-        is_cached: input.is_cached || true,
-        created_at: new Date(),
-        updated_at: new Date()
-    });
+        is_cached: input.is_cached !== undefined ? input.is_cached : true
+      })
+      .returning()
+      .execute();
+
+    return result[0];
+  } catch (error) {
+    console.error('Schedule creation failed:', error);
+    throw error;
+  }
 };
 
 /**

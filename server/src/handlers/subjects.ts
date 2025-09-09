@@ -1,3 +1,5 @@
+import { db } from '../db';
+import { subjectsTable } from '../db/schema';
 import { type CreateSubjectInput, type UpdateSubjectInput, type Subject } from '../schema';
 
 /**
@@ -5,15 +7,23 @@ import { type CreateSubjectInput, type UpdateSubjectInput, type Subject } from '
  * Handles subject creation with code, name, and time allocation
  */
 export const createSubject = async (input: CreateSubjectInput): Promise<Subject> => {
-    // Placeholder implementation - should create subject in database
-    return Promise.resolve({
-        id: 1,
-        code: input.code,
-        name: input.name,
-        time_allocation: input.time_allocation,
-        created_at: new Date(),
-        updated_at: new Date()
-    });
+    try {
+        // Insert subject record
+        const result = await db.insert(subjectsTable)
+            .values({
+                code: input.code,
+                name: input.name,
+                time_allocation: input.time_allocation
+            })
+            .returning()
+            .execute();
+
+        const subject = result[0];
+        return subject;
+    } catch (error) {
+        console.error('Subject creation failed:', error);
+        throw error;
+    }
 };
 
 /**
